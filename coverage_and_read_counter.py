@@ -13,6 +13,13 @@ from Bio import SeqIO
 
 script, samfile_path, phred_cutoff, reffile, genes_file, out_file = argv
 
+"""
+This script builds a custom RNAseq read merger and then then determines the overall 
+per-base coverage and counts the total number of reads per gene across the genome.
+"""
+
+
+
 ###########################
 #########Functions#########
 ###########################
@@ -21,10 +28,11 @@ script, samfile_path, phred_cutoff, reffile, genes_file, out_file = argv
 def highest_quality(mate_1_overlap_seq, mate_2_overlap_seq, mate_1_overlap_quality, mate_2_overlap_quality):
         mate_overlap_consensus = ""
         score_overlap_consensus = ""
-        
+        #Read in base calls and their quality scores
         for base_1, base_2, score_1, score_2 in zip(mate_1_overlap_seq, mate_2_overlap_seq, mate_1_overlap_quality, mate_2_overlap_quality):
-            score_1_prob, score_2_prob = (1 - 10**(float(ord(score_1)-33)/-10)), (1 - 10**(float(ord(score_2)-33)/-10))
+            score_1_prob, score_2_prob = (1 - 10**(float(ord(score_1)-33)/-10)), (1 - 10**(float(ord(score_2)-33)/-10)) #Transform quality scores into probability scores
             
+            #Combine the two reads where they overlap
             if score_1_prob >= score_2_prob:
                 mate_overlap_consensus = mate_overlap_consensus + base_1
                 score_overlap_consensus = score_overlap_consensus + score_1
@@ -36,7 +44,7 @@ def highest_quality(mate_1_overlap_seq, mate_2_overlap_seq, mate_1_overlap_quali
         return mate_overlap_consensus, score_overlap_consensus
 
 
-##Pretty much just a custom read merger. The comments with dashes below are the types of reads the code is meant to resolve
+# This function is a custom read merger. The comments with dashes below are the types of reads the code is meant to resolve
 def consensus(mate_1_position, mate_2_position, mate_1_sequence, mate_2_sequence, mate_1_quality, mate_2_quality):
     mate_offset = mate_2_position - mate_1_position
     mate_1_len, mate_2_len = len(mate_1_sequence), len(mate_2_sequence)
@@ -121,7 +129,7 @@ def consensus(mate_1_position, mate_2_position, mate_1_sequence, mate_2_sequence
     return mate_consensus, quality_consensus
 
 
-#Set up reference
+#Set up reference genome
 reference = open(reffile,"r")
 reference.readline()
 ref = reference.readlines()
@@ -161,6 +169,10 @@ reverse_flags = [81, 83, 161, 163]
 
 mappings = np.zeros((len(reference), 2), dtype=int)
 
+#Open up the alignment file (samfile) and iterate through each alignment
+##Figure out if it's a good alignment, if so move forward,
+##Then finds how much overlap the two reads have,
+##
 with gzip.open(samfile_path, 'rb') as samfile:
     current_pair = ""
     start_time = time.time()
@@ -203,13 +215,15 @@ with gzip.open(samfile_path, 'rb') as samfile:
                             read_strand = 0
                         else:
                             read_strand = 1
-                            
+                        
+                        #Get consensus of reads
                         mate_consensus, quality_consensus = consensus(mate_1_pos, mate_2_pos, mate_1_seq, mate_2_seq, mate_1_Q, mate_2_Q)
                         read_end = read_start + len(mate_consensus)
                         i = 0
                         below_threshold = 0
                         above_threshold = 0
                         
+                        #Determine the overall quality of the overlapped reads based on quality scores
                         while i < len(mate_consensus):
                             phred = -1*(10*(float(ord(quality_consensus[i])-33)/-10)) #reduced this equation to avoid unnecessary calculations
                             if float(phred_cutoff) <= phred:
@@ -218,12 +232,13 @@ with gzip.open(samfile_path, 'rb') as samfile:
                                 below_threshold += 1
                             i += 1
                         
-                        #Only write the reads that are at least 75% high quality
+                        #Only keep the reads that are at least 75% high quality
                         proportion_above_threshold = above_threshold / (above_threshold + below_threshold)
                         
                         if proportion_above_threshold >= 0.75:
                             mappings[read_start:read_end,  read_strand] += 1
                             
+                            #If the read passed the quality threshold, count its overall coverage in its location in the genome
                             gene_index = 0 #Index counter
                             for gene in genes_info:
                                 gene_strand, start, stop = gene
@@ -242,21 +257,21 @@ with gzip.open(samfile_path, 'rb') as samfile:
                     else: # The mapping is odd, so we won't use this pair of reads
                         pass
                     
-                    
+#Turn the coverage and counts data into a pandas dataframe                 
 mappings = pd.DataFrame(mappings, columns=["forward", "reverse"])
 read_counts = pd.DataFrame(read_counts, columns=["sense", "antisense"])
 
+#Build up the whole read counts and then write it to a file
 master_read_counts = pd.DataFrame({"genes": genes_list})
 master_read_counts["sense"] = read_counts["sense"]
 master_read_counts["antisense"] = read_counts["antisense"]
 master_read_counts.to_csv(out_file + "_readcounts.txt", sep="\t", index=False)
 
-
+#Build up the whole coverage dataframe and then write it to a file
 master_dataframe = pd.DataFrame(np.array(range(0,len(reference))), columns=["position"])
 master_dataframe["base"] = pd.Series(list(reference)).astype("str")
 master_dataframe["forward"] = mappings["forward"]
 master_dataframe["reverse"] = mappings["reverse"]
 master_dataframe = master_dataframe.iloc[1:] #Drop the throw-away row
-
 master_dataframe.to_csv(out_file + "_coverage.txt", sep="\t", index=False)
 
