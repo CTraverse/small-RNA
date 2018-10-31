@@ -7,7 +7,7 @@ Created on Thu Apr 19 15:20:37 2018
 """
 
 """
-This script will calculate Person's R for each RNAseq library to determien how close each replicate is to one another.
+This script will calculate Person's rho for each RNAseq library to determien how close each replicate is to one another.
 It appears that there's a systematic bias in replicate 1, so we will test this by looking at genome-wide expression correlation
 """
 
@@ -43,7 +43,7 @@ standard = pd.DataFrame(preprocessing.scale(read_counts), columns = read_counts.
 
 r_write = open('/home/chuck/Documents/RNAseq/coding_norm/pearsonr_library_replicates.txt', 'w')
 
-#Calculate Pearson's R to find how well correlated the library replicates are to one another
+#Calculate Pearson's rho to find how well correlated the library replicates are to one another
 for clone in clones:
     first, second, third = read_counts[clone_dict[clone][1]], read_counts[clone_dict[clone][2]], read_counts[clone_dict[clone][3]]
     #Calculate for each combination of the two replicates
@@ -51,7 +51,7 @@ for clone in clones:
     oneVSthree = pearsonr(first,third)
     twoVSthree = pearsonr(second,third)
     
-    #Write the Pearson's Rs to a file
+    #Write the Pearson's rho to a file
     r_write.write("%s\t%s\t%s\t%s" % (clone, oneVStwo[0], oneVSthree[0], twoVSthree[0]))
 
 
