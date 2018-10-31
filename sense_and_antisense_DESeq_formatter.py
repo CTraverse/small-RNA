@@ -6,31 +6,28 @@ Created on Thu May 10 14:43:36 2018
 @author: chuck
 """
 
+"""
+This script will take each RNAseq read counts file and generate three files: 
+Sense reads, antisense reads, and a file that is a combination of both.
+"""
+
 import pandas as pd
 import os
 
-##########################################################################################################################################################
-###This script will take each RNAseq read counts file and generate three files: Sense reads, antisense reads, and a file that is a combination of both.###
-##########################################################################################################################################################
-
-
-counts = "/home/chuck/Documents/RNAseq/read_counts_May/reps_2and3/"
-
-files = os.listdir(counts)
-
+#Import list of files for each library
+files = os.listdir("/home/chuck/Documents/RNAseq/read_counts_May/reps_2and3/")
+#import list of library names
 lib_list = list(open("/home/chuck/Documents/RNAseq/lib_names_2and3.txt", "r"))
 
-##Initialize dataframes###
-
+##Initialize dataframes
 initializer = pd.DataFrame(pd.read_csv("/home/chuck/Documents/RNAseq/read_counts_May/reps_2and3/LIB_187_S16_L007_May_readcounts.txt", sep="\t"))
 sense_genes = pd.DataFrame(initializer["genes"])
 antisense_genes = pd.DataFrame(initializer["genes"])
 combined_genes = pd.DataFrame(initializer["genes"])
 
+#Create dictionaries to rename the genes to _sense and _antisense
 sense_rename = {}
 antisense_rename = {}
-
-#Create a dictionary to rename the genes to _sense and _antisense
 for gene in sense_genes.iterrows():
     sense_rename[gene[1][0]] = gene[1][0] + "_sense"
     antisense_rename[gene[1][0]] = gene[1][0] + "_antisense"
